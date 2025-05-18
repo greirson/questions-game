@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -30,10 +30,21 @@ export async function POST(request: Request) {
     // Generate unique filename
     const extension = path.extname(file.name);
     const filename = `${uuidv4()}${extension}`;
+    
+    // Ensure we're using the correct public directory path
     const uploadDir = path.join(process.cwd(), 'public', 'uploads');
     
     // Ensure upload directory exists
-    await writeFile(path.join(uploadDir, filename), buffer);
+    try {
+      await mkdir(uploadDir, { recursive: true });
+    } catch (error) {
+      console.error('Error creating upload directory:', error);
+      return NextResponse.json({ error: 'Failed to create upload directory' }, { status: 500 });
+    }
+
+    // Save file to public/uploads directory
+    const filePath = path.join(uploadDir, filename);
+    await writeFile(filePath, buffer);
 
     // Return the public URL of the uploaded file
     const fileUrl = `/uploads/${filename}`;
