@@ -8,6 +8,7 @@ COPY package*.json ./
 
 # Install dependencies
 RUN npm ci
+RUN npm install --save-dev @types/node @types/react @types/react-dom
 
 # Copy source code except questions.json
 COPY . .

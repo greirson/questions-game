@@ -1,15 +1,16 @@
+version: '3.8'
+
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    build: .
     ports:
       - "3000:3000"
+    volumes:
+      - ./questions.json:/app/questions.json
+      - ./public/uploads:/app/public/uploads
     environment:
       - NODE_ENV=production
-    volumes:
-      - ./uploads:/app/public/uploads
-      - ./questions.json:/app/questions.json
+      - PORT=3000
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]

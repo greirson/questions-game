@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import styles from './admin.module.css';
 
 interface Question {
@@ -55,7 +55,7 @@ export default function Admin() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (editingQuestion) {
       await fetch('/api/questions', {
@@ -86,7 +86,7 @@ export default function Admin() {
     setEditingQuestion(question);
   };
 
-  const getContentType = (content: string | undefined) => {
+  const getContentType = (content: string | undefined): 'empty' | 'image' | 'video' | 'url' | 'text' => {
     if (!content) return 'empty';
     if (content.startsWith('/uploads/')) {
       const extension = content.split('.').pop()?.toLowerCase();
@@ -104,36 +104,81 @@ export default function Admin() {
 
   const renderContentPreview = (content: string | undefined) => {
     if (!content) return null;
-    const type = getContentType(content);
-    switch (type) {
-      case 'image':
-        return <img src={content} alt="Preview" className={styles.previewImage} />;
-      case 'video':
-        if (content.startsWith('/uploads/')) {
-          return (
-            <video controls className={styles.previewVideo}>
-              <source src={content} type="video/mp4" />
-              Your browser does not support the video tag.
-            </video>
-          );
-        }
-        const videoId = content.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)?.[1];
-        return videoId ? (
-          <iframe
-            width="100%"
-            height="200"
-            src={`https://www.youtube.com/embed/${videoId}`}
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
-        ) : null;
-      case 'url':
-        return <a href={content} target="_blank" rel="noopener noreferrer">{content}</a>;
-      case 'text':
-        return <div className={styles.textPreview}>{content}</div>;
-      default:
-        return null;
+    
+    try {
+      // Try to parse content as JSON array of URLs
+      const urls = JSON.parse(content);
+      if (Array.isArray(urls)) {
+        return (
+          <div className={styles.multiPreview}>
+            {urls.map((url: string, index: number) => {
+              const type = getContentType(url);
+              switch (type) {
+                case 'image':
+                  return <img key={index} src={url} alt={`Preview ${index + 1}`} className={styles.previewImage} />;
+                case 'video':
+                  if (url.startsWith('/uploads/')) {
+                    return (
+                      <video key={index} controls className={styles.previewVideo}>
+                        <source src={url} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                    );
+                  }
+                  const videoId = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)?.[1];
+                  return videoId ? (
+                    <iframe
+                      key={index}
+                      width="100%"
+                      height="200"
+                      src={`https://www.youtube.com/embed/${videoId}`}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    />
+                  ) : null;
+                case 'url':
+                  return <a key={index} href={url} target="_blank" rel="noopener noreferrer">{url}</a>;
+                default:
+                  return null;
+              }
+            })}
+          </div>
+        );
+      }
+    } catch {
+      // If not JSON, treat as single content
+      const type = getContentType(content);
+      switch (type) {
+        case 'image':
+          return <img src={content} alt="Preview" className={styles.previewImage} />;
+        case 'video':
+          if (content.startsWith('/uploads/')) {
+            return (
+              <video controls className={styles.previewVideo}>
+                <source src={content} type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
+            );
+          }
+          const videoId = content.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/)?.[1];
+          return videoId ? (
+            <iframe
+              width="100%"
+              height="200"
+              src={`https://www.youtube.com/embed/${videoId}`}
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          ) : null;
+        case 'url':
+          return <a href={content} target="_blank" rel="noopener noreferrer">{content}</a>;
+        case 'text':
+          return <div className={styles.textPreview}>{content}</div>;
+        default:
+          return null;
+      }
     }
   };
 
@@ -158,13 +203,15 @@ export default function Admin() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      Array.from(files).forEach(file => {
+        formData.append('files', file);
+      });
 
       const response = await fetch('/api/upload', {
         method: 'POST',
@@ -177,13 +224,22 @@ export default function Admin() {
 
       const data = await response.json();
       if (editingQuestion) {
-        setEditingQuestion({ ...editingQuestion, content: data.url });
+        // If editing, append new images to existing ones
+        const existingContent = editingQuestion.content ? JSON.parse(editingQuestion.content) : [];
+        setEditingQuestion({ 
+          ...editingQuestion, 
+          content: JSON.stringify([...existingContent, ...data.urls])
+        });
       } else {
-        setNewQuestion({ ...newQuestion, content: data.url });
+        // If new question, set the content as array of URLs
+        setNewQuestion({ 
+          ...newQuestion, 
+          content: JSON.stringify(data.urls)
+        });
       }
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Failed to upload file. Please try again.');
+      alert('Failed to upload files. Please try again.');
     }
   };
 
@@ -199,7 +255,7 @@ export default function Admin() {
           <input
             type="text"
             value={gameData?.title || ''}
-            onChange={(e) => handleTitleUpdate(e.target.value)}
+            onChange={(e: ChangeEvent<HTMLInputElement>) => handleTitleUpdate(e.target.value)}
             className={styles.titleInput}
             placeholder="Enter site title"
           />
@@ -213,7 +269,7 @@ export default function Admin() {
           <input
             type="text"
             value={editingQuestion?.title || newQuestion.title}
-            onChange={(e) => {
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
               if (editingQuestion) {
                 setEditingQuestion({ ...editingQuestion, title: e.target.value });
               } else {
@@ -228,7 +284,7 @@ export default function Admin() {
           <input
             type="text"
             value={editingQuestion?.subtitle || newQuestion.subtitle}
-            onChange={(e) => {
+            onChange={(e: ChangeEvent<HTMLInputElement>) => {
               if (editingQuestion) {
                 setEditingQuestion({ ...editingQuestion, subtitle: e.target.value });
               } else {
@@ -240,7 +296,7 @@ export default function Admin() {
         <div className={styles.formGroup}>
           <label>Content:</label>
           <div className={styles.contentTypeIndicator}>
-            Type: {getContentType(editingQuestion?.content || newQuestion.content)}
+            Type: Multiple Media
           </div>
           <div className={styles.uploadSection}>
             <input
@@ -248,11 +304,12 @@ export default function Admin() {
               accept="image/*,video/*"
               onChange={handleFileUpload}
               className={styles.fileInput}
+              multiple
             />
             <div className={styles.orDivider}>or</div>
             <textarea
               value={editingQuestion?.content || newQuestion.content}
-              onChange={(e) => {
+              onChange={(e: ChangeEvent<HTMLTextAreaElement>) => {
                 if (editingQuestion) {
                   setEditingQuestion({ ...editingQuestion, content: e.target.value });
                 } else {
@@ -279,7 +336,7 @@ export default function Admin() {
 
       <div className={styles.questionsList}>
         <h2>Existing Questions</h2>
-        {gameData?.questions.map((question, index) => (
+        {gameData?.questions.map((question: Question, index: number) => (
           <div key={question.id} className={styles.questionCard}>
             <h3>{question.title}</h3>
             <p>{question.subtitle}</p>

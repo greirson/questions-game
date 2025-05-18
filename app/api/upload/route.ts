@@ -6,35 +6,27 @@ import { v4 as uuidv4 } from 'uuid';
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const files = formData.getAll('files') as File[];
     
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+    if (!files || files.length === 0) {
+      return NextResponse.json({ error: 'No files provided' }, { status: 400 });
     }
 
-    // Validate file type
+    // Validate file types and sizes
     const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'video/mp4', 'video/webm'];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Invalid file type' }, { status: 400 });
-    }
-
-    // Validate file size (10MB max)
     const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
-      return NextResponse.json({ error: 'File too large' }, { status: 400 });
+
+    for (const file of files) {
+      if (!allowedTypes.includes(file.type)) {
+        return NextResponse.json({ error: `Invalid file type: ${file.type}` }, { status: 400 });
+      }
+      if (file.size > maxSize) {
+        return NextResponse.json({ error: `File too large: ${file.name}` }, { status: 400 });
+      }
     }
 
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Generate unique filename
-    const extension = path.extname(file.name);
-    const filename = `${uuidv4()}${extension}`;
-    
-    // Ensure we're using the correct public directory path
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-    
     // Ensure upload directory exists
+    const uploadDir = path.join(process.cwd(), 'public', 'uploads');
     try {
       await mkdir(uploadDir, { recursive: true });
     } catch (error) {
@@ -42,15 +34,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to create upload directory' }, { status: 500 });
     }
 
-    // Save file to public/uploads directory
-    const filePath = path.join(uploadDir, filename);
-    await writeFile(filePath, buffer);
+    // Process all files
+    const uploadedUrls = await Promise.all(
+      files.map(async (file) => {
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        const extension = path.extname(file.name);
+        const filename = `${uuidv4()}${extension}`;
+        const filePath = path.join(uploadDir, filename);
+        await writeFile(filePath, buffer);
+        return `/uploads/${filename}`;
+      })
+    );
 
-    // Return the public URL of the uploaded file
-    const fileUrl = `/uploads/${filename}`;
-    return NextResponse.json({ url: fileUrl });
+    return NextResponse.json({ urls: uploadedUrls });
   } catch (error) {
     console.error('Upload error:', error);
-    return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to upload files' }, { status: 500 });
   }
 } 
