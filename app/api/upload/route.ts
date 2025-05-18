@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
+import { writeFile, mkdir, chmod } from 'fs/promises';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -29,6 +29,8 @@ export async function POST(request: Request) {
     const uploadDir = path.join(process.cwd(), 'public', 'uploads');
     try {
       await mkdir(uploadDir, { recursive: true });
+      // Set directory permissions to 755
+      await chmod(uploadDir, 0o755);
     } catch (error) {
       console.error('Error creating upload directory:', error);
       return NextResponse.json({ error: 'Failed to create upload directory' }, { status: 500 });
@@ -43,6 +45,8 @@ export async function POST(request: Request) {
         const filename = `${uuidv4()}${extension}`;
         const filePath = path.join(uploadDir, filename);
         await writeFile(filePath, buffer);
+        // Set file permissions to 644
+        await chmod(filePath, 0o644);
         return `/uploads/${filename}`;
       })
     );
