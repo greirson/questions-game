@@ -15,6 +15,15 @@ interface GameData {
   questions: Question[];
 }
 
+// Helper function to adjust URL for local uploads
+const getMediaUrl = (originalUrl: string): string => {
+  if (originalUrl && originalUrl.startsWith('/uploads/')) {
+    // Remove '/uploads/' and prepend '/api/media/'
+    return `/api/media${originalUrl.substring('/uploads'.length)}`;
+  }
+  return originalUrl; // Return original if not a local upload path
+};
+
 export default function Home() {
   const [gameData, setGameData] = useState<GameData | null>(null);
 
@@ -32,12 +41,17 @@ export default function Home() {
         return (
           <div className={styles.multiContent}>
             {urls.map((url: string, index: number) => {
-              // Check if content is an image URL
-              if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
+              const displayUrl = getMediaUrl(url); // Transformed URL for display
+
+              // Check if original content is an image URL (local or remote)
+              if (url.startsWith('/uploads/') && /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
+                 return <img key={index} src={displayUrl} alt={`Question content ${index + 1}`} className={styles.contentImage} />;
+              }
+              if (/^https?:\/\//i.test(url) && /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) {
                 return <img key={index} src={url} alt={`Question content ${index + 1}`} className={styles.contentImage} />;
               }
               
-              // Check if content is a YouTube URL
+              // Check if original content is a YouTube URL
               const youtubeMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
               if (youtubeMatch) {
                 return (
@@ -49,16 +63,28 @@ export default function Home() {
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
+                    className={styles.contentVideo}
                   />
                 );
               }
 
-              // Check if content is a URL
+              // Check if original content is a local video file
+              if (url.startsWith('/uploads/') && /\.(mp4|webm)(\?.*)?$/i.test(url)) {
+                const videoType = url.endsWith('.webm') ? 'video/webm' : 'video/mp4';
+                return (
+                  <video key={index} controls className={styles.contentVideo}>
+                    <source src={displayUrl} type={videoType} />
+                    Your browser does not support the video tag.
+                  </video>
+                );
+              }
+
+              // Check if content is any other URL
               if (/^https?:\/\//i.test(url)) {
                 return <a key={index} href={url} target="_blank" rel="noopener noreferrer">{url}</a>;
               }
 
-              // Default to text
+              // Default to text (if it's not a recognized URL format but was in the JSON array)
               return <p key={index} className={styles.questionText}>{url}</p>;
             })}
           </div>
@@ -66,12 +92,17 @@ export default function Home() {
       }
     } catch {
       // If not JSON, treat as single content
-      // Check if content is an image URL
-      if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(content)) {
+      const displayContent = getMediaUrl(content); // Transformed content for display
+
+      // Check if original content is an image URL (local or remote)
+      if (content.startsWith('/uploads/') && /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(content)) {
+         return <img src={displayContent} alt="Question content" className={styles.contentImage} />;
+      }
+      if (/^https?:\/\//i.test(content) && /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(content)) {
         return <img src={content} alt="Question content" className={styles.contentImage} />;
       }
       
-      // Check if content is a YouTube URL
+      // Check if original content is a YouTube URL
       const youtubeMatch = content.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&]+)/);
       if (youtubeMatch) {
         return (
@@ -82,11 +113,23 @@ export default function Home() {
             frameBorder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
+            className={styles.contentVideo}
           />
         );
       }
 
-      // Check if content is a URL
+      // Check if original content is a local video file
+      if (content.startsWith('/uploads/') && /\.(mp4|webm)(\?.*)?$/i.test(content)) {
+        const videoType = content.endsWith('.webm') ? 'video/webm' : 'video/mp4';
+        return (
+          <video controls className={styles.contentVideo}>
+            <source src={displayContent} type={videoType} />
+            Your browser does not support the video tag.
+          </video>
+        );
+      }
+
+      // Check if content is any other URL
       if (/^https?:\/\//i.test(content)) {
         return <a href={content} target="_blank" rel="noopener noreferrer">{content}</a>;
       }
@@ -120,4 +163,4 @@ export default function Home() {
       )}
     </main>
   );
-} 
+}

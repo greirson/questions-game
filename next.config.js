@@ -1,30 +1,26 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ['localhost'],
-    remotePatterns: [
-      {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '3000',
-        pathname: '/uploads/**',
-      },
-    ],
+    // This is for next/image component, not directly for your <img> tags with /api/media
+    // If you ever use next/image with your API endpoint, you'd add it here.
+    // For now, it's not strictly necessary for the current solution.
+    // remotePatterns: [
+    //   {
+    //     protocol: 'http', // or https if your dev/prod uses it
+    //     hostname: 'localhost', // or your domain
+    //     port: '3000', // or your port
+    //     pathname: '/api/media/**',
+    //   },
+    // ],
   },
-  // Enable static file serving with appropriate cache headers
-  async headers() {
-    return [
-      {
-        source: '/uploads/:path*',
-        headers: [
-          {
-            key: 'Cache-Control',
-            value: 'public, max-age=0, must-revalidate',
-          },
-        ],
-      },
-    ];
-  },
+  // The custom headers for /uploads/* are no longer needed
+  // as /api/media/[...filepath]/route.ts sets its own cache headers.
+  // You can keep this headers function if you have other global headers.
+  // async headers() {
+  //   return [
+  //     // Add other global headers here if needed
+  //   ];
+  // },
 }
 
-module.exports = nextConfig 
+module.exports = nextConfig
